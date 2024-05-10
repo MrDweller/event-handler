@@ -1,4 +1,6 @@
-package eventhandler
+package types
+
+type EventHandlerImplementationType string
 
 type EventType string
 

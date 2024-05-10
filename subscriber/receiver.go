@@ -1,4 +1,4 @@
-package eventhandler
+package eventsubscriber
 
 /*
 A Receiver provides a method to receive an event, this is used in the EventSubscriber systems when subscribing.

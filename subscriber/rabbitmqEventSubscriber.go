@@ -1,8 +1,9 @@
-package eventhandler
+package eventsubscriber
 
 import (
 	"fmt"
 
+	"github.com/MrDweller/event-handler/types"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -16,7 +17,7 @@ type RabbitmqEventSubscriber struct {
 	stopSubscribingToEventTypeCannel map[SubscriptionKey]chan bool
 }
 
-func (r *RabbitmqEventSubscriber) subscribe(eventType EventType, eventHandlerAddress string, eventHandlerPort int, eventHandlerSystemName string, subscriptionKey SubscriptionKey, metaData map[string]string, receiver Receiver) error {
+func (r *RabbitmqEventSubscriber) subscribe(eventType types.EventType, eventHandlerAddress string, eventHandlerPort int, eventHandlerSystemName string, subscriptionKey SubscriptionKey, metaData map[string]string, receiver Receiver) error {
 	url := fmt.Sprintf("%s:%d/", eventHandlerAddress, eventHandlerPort)
 	dialAddrr := fmt.Sprintf("amqp://guest:guest@%s", url)
 	conn, err := amqp.Dial(dialAddrr)
@@ -32,13 +33,13 @@ func (r *RabbitmqEventSubscriber) subscribe(eventType EventType, eventHandlerAdd
 	defer ch.Close()
 
 	err = ch.ExchangeDeclare(
-		metaData[EXCHANGE], // name
-		"fanout",           // type
-		true,               // durable
-		false,              // auto-deleted
-		false,              // internal
-		false,              // no-wait
-		nil,                // arguments
+		metaData[types.RABBTIMQ_EXCHANGE], // name
+		"fanout",                          // type
+		true,                              // durable
+		false,                             // auto-deleted
+		false,                             // internal
+		false,                             // no-wait
+		nil,                               // arguments
 	)
 	if err != nil {
 		return err
@@ -57,11 +58,11 @@ func (r *RabbitmqEventSubscriber) subscribe(eventType EventType, eventHandlerAdd
 	}
 
 	err = ch.QueueBind(
-		q.Name,             // queue name
-		"",                 // routing key
-		metaData[EXCHANGE], // exchange
-		false,              // no-wait
-		nil,                // arguments
+		q.Name,                            // queue name
+		"",                                // routing key
+		metaData[types.RABBTIMQ_EXCHANGE], // exchange
+		false,                             // no-wait
+		nil,                               // arguments
 	)
 	if err != nil {
 		return err
@@ -97,7 +98,7 @@ func (r *RabbitmqEventSubscriber) subscribe(eventType EventType, eventHandlerAdd
 /*
 Overrides the super class's Unsubscribe method, and stops all connections before calling the super class's Unsubscribe.
 */
-func (r *RabbitmqEventSubscriber) Unsubscribe(eventType EventType) error {
+func (r *RabbitmqEventSubscriber) Unsubscribe(eventType types.EventType) error {
 	for subscriptionKey, currentEventType := range r.getSubscriptions() {
 		if currentEventType == eventType {
 			r.stopSubscribingToEventTypeCannel[subscriptionKey] <- true

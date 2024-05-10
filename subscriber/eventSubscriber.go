@@ -1,10 +1,11 @@
-package eventhandler
+package eventsubscriber
 
 import (
 	"errors"
 	"fmt"
 	"log"
 
+	"github.com/MrDweller/event-handler/types"
 	orchestratormodels "github.com/MrDweller/orchestrator-connection/models"
 	"github.com/MrDweller/orchestrator-connection/orchestrator"
 	"github.com/MrDweller/service-registry-connection/models"
@@ -15,16 +16,16 @@ import (
 Event subscriber, is a system that can subscribe for events from a certain messaging broker.
 */
 type EventSubscriber interface {
-	subscribe(eventType EventType, eventHandlerAddress string, eventHandlerPort int, eventHandlerSystemName string, subscriptionKey SubscriptionKey, metaData map[string]string, receiver Receiver) error
+	subscribe(eventType types.EventType, eventHandlerAddress string, eventHandlerPort int, eventHandlerSystemName string, subscriptionKey SubscriptionKey, metaData map[string]string, receiver Receiver) error
 
 	registerEventSubscriberSystem() error
 	UnregisterEventSubscriberSystem() error
 
-	Subscribe(eventType EventType, receiver Receiver) error
-	Unsubscribe(eventType EventType) error
+	Subscribe(eventType types.EventType, receiver Receiver) error
+	Unsubscribe(eventType types.EventType) error
 
 	getSystemDefinition() models.SystemDefinition
-	getSubscriptions() map[SubscriptionKey]EventType
+	getSubscriptions() map[SubscriptionKey]types.EventType
 }
 
 /*
@@ -32,7 +33,7 @@ Creates a new event subscriber system, that can subscribe for events from event 
 The event subscriber will automatically on creation be registered to the service registry as a system.
 */
 func EventSubscriberFactory(
-	eventHandlerImplementation EventHandlerImplementationType,
+	eventHandlerImplementation types.EventHandlerImplementationType,
 	systemDomainAddress string,
 	systemDomainPort int,
 	systemName string,
@@ -93,11 +94,11 @@ func EventSubscriberFactory(
 		serviceRegistryConnection: serviceRegistryConnection,
 		orchestrationConnection:   orchestrationConnection,
 
-		subscriptions: map[SubscriptionKey]EventType{},
+		subscriptions: map[SubscriptionKey]types.EventType{},
 	}
 
 	switch eventHandlerImplementation {
-	case RABBITMQ_3_12_12_EVENT_HANDLER:
+	case types.RABBITMQ_3_12_12_EVENT_HANDLER:
 		eventSubscriber = &RabbitmqEventSubscriber{
 			AbstractEventSubscriber:          &eventSubscriberBase,
 			stopSubscribingToEventTypeCannel: map[SubscriptionKey]chan bool{},
@@ -131,7 +132,7 @@ type AbstractEventSubscriber struct {
 	serviceRegistryConnection serviceregistry.ServiceRegistryConnection
 	orchestrationConnection   orchestrator.OrchestratorConnection
 
-	subscriptions map[SubscriptionKey]EventType
+	subscriptions map[SubscriptionKey]types.EventType
 }
 
 func (e *AbstractEventSubscriber) registerEventSubscriberSystem() error {
@@ -146,7 +147,7 @@ func (e *AbstractEventSubscriber) UnregisterEventSubscriberSystem() error {
 	return e.serviceRegistryConnection.UnRegisterSystem(e.getSystemDefinition())
 }
 
-func (e *AbstractEventSubscriber) Subscribe(eventType EventType, receiver Receiver) error {
+func (e *AbstractEventSubscriber) Subscribe(eventType types.EventType, receiver Receiver) error {
 	systemDefinition := e.getSystemDefinition()
 	orchestrationResponse, err := e.orchestrationConnection.Orchestration(
 		string(eventType),
@@ -177,7 +178,7 @@ func (e *AbstractEventSubscriber) Subscribe(eventType EventType, receiver Receiv
 	for _, provider := range providers {
 		log.Printf("subscribing to %s events from %s at %s:%d\n", eventType, provider.Provider.SystemName, provider.Provider.Address, provider.Provider.Port)
 
-		go func(eventType EventType, eventHandlerAddress string, eventHandlerPort int, eventHandlerSystemName string, metaData map[string]string) {
+		go func(eventType types.EventType, eventHandlerAddress string, eventHandlerPort int, eventHandlerSystemName string, metaData map[string]string) {
 			subscriptionKey, err := e.NewSubscription(eventType, eventHandlerAddress, eventHandlerPort, eventHandlerSystemName)
 			if err != nil {
 				log.Printf("error during subscription: %s\n", err)
@@ -196,7 +197,7 @@ func (e *AbstractEventSubscriber) Subscribe(eventType EventType, receiver Receiv
 	return nil
 }
 
-func (e *AbstractEventSubscriber) Unsubscribe(eventType EventType) error {
+func (e *AbstractEventSubscriber) Unsubscribe(eventType types.EventType) error {
 	for subscriptionKey, currentEventType := range e.subscriptions {
 		if currentEventType == eventType {
 			e.RemoveSubscription(subscriptionKey)
@@ -219,7 +220,7 @@ A subscription is identified by eventType, eventHandlerAddress, eventHandlerPort
 A subscriptionKey is created and saved from those attributes.
 If a new subscription is found to alredy exist an error is given.
 */
-func (e *AbstractEventSubscriber) NewSubscription(eventType EventType, eventHandlerAddress string, eventHandlerPort int, eventHandlerSystemName string) (*SubscriptionKey, error) {
+func (e *AbstractEventSubscriber) NewSubscription(eventType types.EventType, eventHandlerAddress string, eventHandlerPort int, eventHandlerSystemName string) (*SubscriptionKey, error) {
 	subscriptionKey := e.NewSubscriptionKey(eventType, eventHandlerAddress, eventHandlerPort, eventHandlerSystemName)
 	_, ok := e.subscriptions[subscriptionKey]
 	if ok {
@@ -240,10 +241,10 @@ func (e *AbstractEventSubscriber) RemoveSubscription(subscriptionKey Subscriptio
 }
 
 // The subscriptionKey identifies an unique subscription, it is identified by eventType, eventHandlerAddress, eventHandlerPort, and eventHandlerSystemName.
-func (e *AbstractEventSubscriber) NewSubscriptionKey(eventType EventType, eventHandlerAddress string, eventHandlerPort int, eventHandlerSystemName string) SubscriptionKey {
+func (e *AbstractEventSubscriber) NewSubscriptionKey(eventType types.EventType, eventHandlerAddress string, eventHandlerPort int, eventHandlerSystemName string) SubscriptionKey {
 	return SubscriptionKey(fmt.Sprintf("%s-%s-%d-%s", eventType, eventHandlerAddress, eventHandlerPort, eventHandlerSystemName))
 }
 
-func (e *AbstractEventSubscriber) getSubscriptions() map[SubscriptionKey]EventType {
+func (e *AbstractEventSubscriber) getSubscriptions() map[SubscriptionKey]types.EventType {
 	return e.subscriptions
 }

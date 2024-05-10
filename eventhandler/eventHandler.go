@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/MrDweller/event-handler/types"
 	"github.com/MrDweller/service-registry-connection/models"
 	serviceregistry "github.com/MrDweller/service-registry-connection/service-registry"
 	"github.com/google/uuid"
@@ -17,31 +18,29 @@ type EventHandler interface {
 	// Interfaces that the event handler implementation uses.
 	getInterfaces() []string
 	// Metadata that the event handler implementation needs, in order to function.
-	getMetadata(eventHandlerService EventService) map[string]string
+	getMetadata(eventService EventService) map[string]string
 
 	// Sends a given event to the messaging broker, the routing of the messages are defined by the used event handler implementation and the given event service
-	PublishEvent(event Event, eventHandlerService EventService) error
+	PublishEvent(event types.Event, eventService EventService) error
 
-	registerEventHandlerSystem() error
+	registerEventPublisherSystem() error
 
 	// Removes the event handler system and all it's services from the service registry,
 	// Should be called on shutdown of the system, or when the event handler is no longer to be used.
-	UnregisterEventHandlerSystem() error
+	UnregisterEventPublisherSystem() error
 
-	RegisterEventService(eventType EventType) (EventService, error)
-	UnregisterEventService(eventHandlerService EventService) error
+	RegisterEventService(eventType types.EventType) (EventService, error)
+	UnregisterEventService(eventService EventService) error
 
 	getSystemDefinition() models.SystemDefinition
 }
-
-type EventHandlerImplementationType string
 
 /*
 Creates a new event handler system of the given implementation eventHandlerImplementation.
 The event handler will automatically on creation be registered to the service registry.
 */
-func EventHandlerFactory(
-	eventHandlerImplementation EventHandlerImplementationType,
+func EventPublisherFactory(
+	eventHandlerImplementation types.EventHandlerImplementationType,
 	eventHandlerAddress string,
 	eventHandlerPort int,
 	eventHandlerDomainAddress string,
@@ -81,7 +80,7 @@ func EventHandlerFactory(
 	}
 
 	switch eventHandlerImplementation {
-	case RABBITMQ_3_12_12_EVENT_HANDLER:
+	case types.RABBITMQ_3_12_12_EVENT_HANDLER:
 		eventHandler = &RabbitmqEventHandler{
 			AbstractEventHandler: &eventHandlerBase,
 		}
@@ -92,7 +91,7 @@ func EventHandlerFactory(
 	}
 
 	eventHandlerBase.EventHandler = eventHandler
-	err = eventHandler.registerEventHandlerSystem()
+	err = eventHandler.registerEventPublisherSystem()
 	if err != nil {
 		log.Println(err)
 	}
@@ -114,7 +113,7 @@ type AbstractEventHandler struct {
 	serviceRegistryConnection serviceregistry.ServiceRegistryConnection
 }
 
-func (e *AbstractEventHandler) registerEventHandlerSystem() error {
+func (e *AbstractEventHandler) registerEventPublisherSystem() error {
 	_, err := e.serviceRegistryConnection.RegisterSystem(e.getSystemDefinition())
 	if err != nil {
 		return err
@@ -122,11 +121,11 @@ func (e *AbstractEventHandler) registerEventHandlerSystem() error {
 	return nil
 }
 
-func (e *AbstractEventHandler) UnregisterEventHandlerSystem() error {
+func (e *AbstractEventHandler) UnregisterEventPublisherSystem() error {
 	return e.serviceRegistryConnection.UnRegisterSystem(e.getSystemDefinition())
 }
 
-func (e *AbstractEventHandler) RegisterEventService(eventType EventType) (EventService, error) {
+func (e *AbstractEventHandler) RegisterEventService(eventType types.EventType) (EventService, error) {
 	eventService := &EventServiceImplementation{
 		serviceId:    uuid.New(),
 		eventType:    eventType,
@@ -145,9 +144,9 @@ func (e *AbstractEventHandler) RegisterEventService(eventType EventType) (EventS
 	return eventService, nil
 }
 
-func (e *AbstractEventHandler) UnregisterEventService(eventHandlerService EventService) error {
+func (e *AbstractEventHandler) UnregisterEventService(eventService EventService) error {
 	return e.serviceRegistryConnection.UnRegisterService(
-		eventHandlerService.getServiceDefinition(),
+		eventService.getServiceDefinition(),
 		e.getSystemDefinition(),
 	)
 }

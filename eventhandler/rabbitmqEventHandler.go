@@ -7,12 +7,9 @@ import (
 	"log"
 	"time"
 
+	"github.com/MrDweller/event-handler/types"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
-
-const EXCHANGE = "exchange"
-
-const RABBITMQ_3_12_12_EVENT_HANDLER EventHandlerImplementationType = "rabbitmq-3.12.12"
 
 // RabbitMQ event handler, publishes messages via AMQP
 type RabbitmqEventHandler struct {
@@ -22,8 +19,8 @@ type RabbitmqEventHandler struct {
 	*AbstractEventHandler
 }
 
-func (r *RabbitmqEventHandler) PublishEvent(event Event, eventService EventService) error {
-	err := r.emit(event, r.getMetadata(eventService)[EXCHANGE])
+func (r *RabbitmqEventHandler) PublishEvent(event types.Event, eventService EventService) error {
+	err := r.emit(event, r.getMetadata(eventService)[types.RABBTIMQ_EXCHANGE])
 	return err
 }
 
@@ -35,11 +32,11 @@ func (r *RabbitmqEventHandler) getInterfaces() []string {
 
 func (r *RabbitmqEventHandler) getMetadata(eventService EventService) map[string]string {
 	return map[string]string{
-		EXCHANGE: fmt.Sprintf("%s-%s", eventService.GetEventType(), eventService.GetEventServiceId().String()), // This implementation needs a specific exchange to route the messages, thus this is given in the metadata field, so consumers can connect.
+		types.RABBTIMQ_EXCHANGE: fmt.Sprintf("%s-%s", eventService.GetEventType(), eventService.GetEventServiceId().String()), // This implementation needs a specific exchange to route the messages, thus this is given in the metadata field, so consumers can connect.
 	}
 }
 
-func (r *RabbitmqEventHandler) emit(event Event, exchange string) error {
+func (r *RabbitmqEventHandler) emit(event types.Event, exchange string) error {
 	conn, err := amqp.Dial(fmt.Sprintf("amqp://guest:guest@%s:%d/", r.eventHandlerAddress, r.eventHandlerPort))
 	if err != nil {
 		log.Printf("%s: %s", "Failed to connect to RabbitMQ", err)
